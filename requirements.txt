@@ -5,3 +5,14 @@ yfinance
 scikit-learn
 matplotlib
 tensorflow
+ta
+feedparser
+scraper
+beautifulsoup4
+requests
+playwright 
+google-generativeai
+playwright
+nest_asyncio
+selenium 
+webdriver-manager
