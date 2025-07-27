@@ -15,15 +15,9 @@ import datetime as dt
 import matplotlib.pyplot as plt
 from keras.models import load_model
 from screener import  get_screener_data,build_investment_decision_prompt
-from utils import (
-    compute_technical_indicators,
-    plot_ma_chart,
-    plot_rsi_chart,
-    plot_macd_chart,
-    plot_eps_chart,
-    plot_shareholding_pie,
-    humanize_cr
-)
+from utils import plot_eps_chart
+ 
+
 
 st.set_page_config(page_title="📈 Stock Price App", layout="wide")
 tabs = st.tabs(["📉 LSTM Predictor", "📘 Stock Analyzer"])
@@ -139,37 +133,65 @@ with tabs[0]:
 # =====================================
 # 📘 Tab 2: Stock Analyzer
 # =====================================
+# =====================================
+# 📘 Tab 2: Stock Analyzer (Enhanced)
+# =====================================
 with tabs[1]:
-    st.title("📘 Stock Analyzer")
+    st.title("📘 Stock Analyzer & AI Financial Advisor")
+
     if st.button("🔍 Analyze Stock"):
-        with st.spinner("Fetching Stock Analysis..."):
+        with st.spinner("Fetching Stock Analysis & Advice..."):
             clean = stock.upper().split(".")[0] + ".NS"
 
+            # ✅ Step 1: Scrape Screener Data
             overview, analysis, financial_df = get_screener_data(clean)
 
+            # ✅ Step 2: Display Stock Overview
             st.subheader("📊 Stock Overview")
             if overview:
                 st.json(overview)
             else:
                 st.error("Failed to load overview data.")
 
-
-
+            # ✅ Step 3: Analyst Forecasts
             if analysis:
                 st.subheader("📊 Analyst Forecasts")
                 for key, value in analysis.items():
                     st.markdown(f"- **{key}**: {value}")
             else:
-                st.warning("❗ No analysis data found.")
+                st.warning("❗ No analyst data found.")
 
-
-
+            # ✅ Step 4: Financial Charts
             st.subheader("📈 Income Statement / Financials")
             if financial_df is not None and not financial_df.empty:
                 st.plotly_chart(plot_eps_chart(financial_df), use_container_width=True)
             else:
                 st.warning("Financials data unavailable.")
 
-            st.subheader("Summary")
-            st.write(build_investment_decision_prompt(stock, overview,future_predictions[0]))
+            # ✅ Step 5: Generate Investment Advice
+            st.subheader("💡 AI Investment Advice (Gemini)")
+
+            if overview and future_predictions:
+                predicted_price = future_predictions[0]
+                try:
+                    advice_text = build_investment_decision_prompt(stock, overview, predicted_price)
+                    st.success("Here’s what Gemini thinks:")
+                    st.markdown(advice_text)
+
+                    # ✅ Step 6: Download Button for Advice
+                    st.download_button(
+                        label="📥 Download Advice (.txt)",
+                        data=advice_text,
+                        file_name=f"{stock}_gemini_advice.txt",
+                        mime="text/plain"
+                    )
+                except Exception as e:
+                    st.error(f"Gemini API error: {e}")
+            else:
+                st.warning("Overview or predicted price missing. Advice generation skipped.")
+
+
+            
+
+            
    

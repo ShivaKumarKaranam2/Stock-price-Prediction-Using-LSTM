@@ -11,9 +11,15 @@ import json
 import pandas as pd
 import yfinance as yf
 from bs4 import BeautifulSoup
+import re
+from dotenv import load_dotenv
+import os
 
+load_dotenv()  # 🔄 Loads environment variables from .env file
+
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 # ✅ Gemini API Key
-genai.configure(api_key="AIzaSyDXP7hms2jkswxBZhMh8TTXO_dlAavq6ko")
+genai.configure(api_key="GEMINI_API_KEY")
 
 # ✅ Get HTML using Selenium
 def get_rendered_html_selenium(url):
@@ -28,12 +34,12 @@ def get_rendered_html_selenium(url):
     driver.quit()
     return html
 
-# ✅ Gemini-based Metric Extractor
+
 def extract_metrics_from_html(html, symbol):
     prompt = f"""
-You are a financial data extractor. From the Yahoo Finance HTML page for {symbol}, extract all key metrics visible in the summary section.
+You are a financial data extractor. From the following Yahoo Finance HTML page for the stock symbol {symbol}, extract all the summary key-value metrics displayed to the user.
 
-Format output in JSON like:
+Your response should be a valid JSON object like:
 {{
   "Previous Close": "...",
   "Open": "...",
@@ -51,20 +57,26 @@ Format output in JSON like:
   "Ex-Dividend Date": "..."
 }}
 
-Don’t guess data. HTML content:
+Only include real data if available. Don’t make up values. HTML content is below:
 ----
 {html[:18000]}
 """
+
     model = genai.GenerativeModel("gemma-3n-e4b-it")
     response = model.generate_content(prompt)
     try:
-        json_start = response.text.find("{")
-        json_data = response.text[json_start:].split("}```")[0].strip()
-        return json.loads(json_data)
+        # Extract first valid JSON block using regex
+        json_match = re.search(r"{.*?}", response.text, re.DOTALL)
+        if json_match:
+            json_text = json_match.group(0)
+            return json.loads(json_text)
+        else:
+            raise ValueError("No valid JSON found")
     except Exception as e:
         print("⚠️ Could not parse JSON:", e)
         print(response.text)
         return {}
+
 
 # ✅ Overview Data
 def scrape_overview(symbol: str) -> dict:
@@ -72,24 +84,60 @@ def scrape_overview(symbol: str) -> dict:
     html = get_rendered_html_selenium(url)
     return extract_metrics_from_html(html, symbol=symbol)
 
-# ✅ Analyst Data
+
+
+def extract_analysis_from_html(html, symbol):
+    prompt = f"""
+You are a financial data extractor for stock analysis. From the HTML content of the Yahoo Finance **Analysis** page for the stock symbol `{symbol}`, extract a structured JSON object summarizing the key analysis metrics.
+
+Format your response like this:
+{{
+  "Revenue Estimate - Current Qtr": "...",
+  "Revenue Estimate - Next Qtr": "...",
+  "EPS Trend - Current Qtr": "...",
+  "EPS Trend - Current Year": "...",
+  ...
+}}
+
+Only extract what is actually visible and avoid guessing. Here's the HTML:
+----
+{html[:18000]}
+"""
+    model = genai.GenerativeModel("gemma-3n-e4b-it")
+    response = model.generate_content(prompt)
+
+    try:
+        json_match = re.search(r"{.*?}", response.text, re.DOTALL)
+        if json_match:
+            json_text = json_match.group(0)
+            return json.loads(json_text)
+        else:
+            raise ValueError("No valid JSON found in Gemini output")
+    except Exception as e:
+        print("⚠️ Could not parse Gemini Analysis JSON:", e)
+        print(response.text)
+        return {}
 def scrape_analysis(symbol: str) -> dict:
     url = f"https://finance.yahoo.com/quote/{symbol}/analysis"
-    headers = {"User-Agent": "Mozilla/5.0"}
-    resp = requests.get(url, headers=headers)
-    soup = BeautifulSoup(resp.text, "html.parser")
-    data = {}
+    html = get_rendered_html_selenium(url)
+    soup = BeautifulSoup(html, "html.parser")
+
+    # Collect clean visible text from analysis tables
+    all_tables_text = ""
     for table in soup.find_all("table"):
         for row in table.find_all("tr"):
-            cols = row.find_all("td")
-            if len(cols) == 2:
-                key = cols[0].text.strip()
-                val = cols[1].text.strip()
-                if key and val:
-                    data[key] = val
-    return data
+            cells = row.find_all(["th", "td"])
+            row_text = " | ".join(cell.text.strip() for cell in cells)
+            all_tables_text += row_text + "\n"
 
-# ✅ Financials
+    if not all_tables_text.strip():
+        print("⚠️ No visible text found in analysis tables.")
+        return {}
+
+    return extract_analysis_from_html(all_tables_text, symbol)
+
+
+
 def scrape_financials(symbol: str) -> pd.DataFrame:
     try:
         fin = yf.Ticker(symbol).financials
@@ -97,45 +145,39 @@ def scrape_financials(symbol: str) -> pd.DataFrame:
     except:
         return pd.DataFrame()
 
-# ✅ Main Fetcher
+
 def get_screener_data(symbol: str) -> tuple:
     overview = scrape_overview(symbol)
     analysis = scrape_analysis(symbol)
     financial_df = scrape_financials(symbol)
     return overview, analysis, financial_df
 
-# ✅ LLM Prompt Builder
-def build_investment_decision_prompt(
-    symbol: str,
-    overview_data: dict,
-    technical_indicators: dict,
-) -> str:
-    return f"""
-You are a financial investment advisor with expertise in stock market analysis and forecasting.
+# ✅ Generate AI Investment Advice using Gemini
+def build_investment_decision_prompt(symbol: str, overview: dict, predicted_price: float) -> str:
 
-Your task is to analyze the stock ** ({symbol})** and provide a detailed investment recommendation based on:
+    # Configure Gemini (You can place this once at top of the file too)
+    genai.configure(api_key="GEMINI_API_KEY")  # 🔁 Replace with your actual key if not done above
 
-🎯 Your tasks:
-1. Determine whether the stock is currently **undervalued**, **overvalued**, or **fairly priced**.
-2. Identify short-term (next 7 days) and medium-term (30 days) trends based on both LSTM predictions and technical indicators.
-3. Assess the sentiment and recent news impact (positive/neutral/negative).
-4. Finally, give a **detailed recommendation** for each of the following traders:
-   - Conservative Investor (risk-averse, long-term)
-   - Swing Trader (technical-based, medium-term)
-   - Day Trader (short-term, volatility-based)
+    # Build prompt
+    prompt = f"""
+                You are a professional stock market advisor.
 
-📌 Output Format:
-```json
-{{
-  "ValuationStatus": "...",
-  "ShortTermTrend": "...",
-  "MediumTermForecast": "...",
-  "SentimentImpact": "...",
-  "Recommendations": {{
-    "ConservativeInvestor": "...",
-    "SwingTrader": "...",
-    "DayTrader": "..."
-  }}
-}}
-```"""
+                Analyze this stock and provide investment advice in the following format:
+                1. Investment Decision: Buy / Hold / Sell
+                2. Reasoning based on company metrics
+                3. Risk Factors
+                4. Final Recommendation Summary (one paragraph)
 
+                ### Stock Symbol: {symbol}
+                ### Predicted Price (Next Trading Day): ₹{predicted_price:.2f}
+
+                ### Yahoo Finance Key Metrics (overview):
+                {json.dumps(overview, indent=2)}
+
+                Be precise and explain based only on the data provided. Don’t fabricate missing metrics.
+                """
+
+    # Call Gemini Pro model
+    model = genai.GenerativeModel("gemma-3n-e4b-it")
+    response = model.generate_content(prompt)
+    return response.text.strip()

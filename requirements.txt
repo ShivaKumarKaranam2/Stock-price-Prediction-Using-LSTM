@@ -16,3 +16,5 @@ playwright
 nest_asyncio
 selenium 
 webdriver-manager
+re
+python-dotenv
