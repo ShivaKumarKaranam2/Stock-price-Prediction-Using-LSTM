@@ -6,4 +6,4 @@ datetime
 scikit-learn
 keras
 matplotlib
-tensorflow
+tensorflow>=2.19.0
