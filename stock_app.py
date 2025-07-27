@@ -11,7 +11,7 @@ st.set_page_config(page_title="📈 Stock Price Predictor", layout="wide")
 st.title("📉 Stock Price Prediction using LSTM")
 
 # Load pre-trained model (.h5)
-model = load_model('C:/Users/karan/OneDrive/Documents/Stock price/stock_model.h5')
+model = load_model('stock_model.h5')
 
 # Sidebar Inputs
 stock = st.sidebar.text_input("Enter Stock Symbol", value="AAPL")
