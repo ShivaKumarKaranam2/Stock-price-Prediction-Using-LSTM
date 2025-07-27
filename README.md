@@ -42,21 +42,6 @@ This app predicts the future **closing prices** of any stock using a deep learni
 
 ---
 
-## 📷 Screenshots
-
-### 🔍 Historical Stock Trend
-![Line Chart](https://huggingface.co/spaces/Shiva-k22/Stock-price-prediction-uisng-LSTM/resolve/main/assets/screenshot-historical.png)
-
-### 📊 Actual vs Predicted Price
-![Prediction Chart](https://huggingface.co/spaces/Shiva-k22/Stock-price-prediction-uisng-LSTM/resolve/main/assets/screenshot-predicted.png)
-
-### 🔮 Future Forecast Table
-![Table](https://huggingface.co/spaces/Shiva-k22/Stock-price-prediction-uisng-LSTM/resolve/main/assets/screenshot-table.png)
-
-> 📌 *You can upload these screenshots to your Hugging Face `files` tab under `assets/` and use the above links to show visuals.*
-
----
-
 ## 📁 How to Use (Locally)
 
 ```bash
