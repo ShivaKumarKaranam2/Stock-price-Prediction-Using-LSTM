@@ -16,4 +16,4 @@ nest_asyncio
 selenium 
 webdriver-manager
 python-dotenv
-keras
+tenserflow
