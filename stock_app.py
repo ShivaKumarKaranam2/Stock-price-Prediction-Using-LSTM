@@ -130,12 +130,9 @@ with tabs[0]:
     csv_future = future_df.to_csv(index=False).encode('utf-8')
     st.download_button("📥 Download CSV", csv_future, f"{stock}_future_predictions.csv", "text/csv")
 
-# =====================================
-# 📘 Tab 2: Stock Analyzer
-# =====================================
-# =====================================
+
 # 📘 Tab 2: Stock Analyzer (Enhanced)
-# =====================================
+
 with tabs[1]:
     st.title("📘 Stock Analyzer & AI Financial Advisor")
 
