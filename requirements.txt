@@ -17,4 +17,5 @@ selenium
 webdriver-manager
 python-dotenv
 keras
+python==3.13.5
 tensorflow==2.19.0
