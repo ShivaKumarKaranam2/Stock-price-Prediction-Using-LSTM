@@ -5,10 +5,6 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import yfinance as yf
-import asyncio
-import nest_asyncio
-
-nest_asyncio.apply()
 
 
 import datetime as dt
