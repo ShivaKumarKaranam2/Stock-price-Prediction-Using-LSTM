@@ -13,5 +13,4 @@ google-generativeai
 nest_asyncio
 python-dotenv
 selenium
-# TensorFlow (CPU only, for lightweight deployment)
-tensorflow-cpu==2.12.0
+tensorflow
