@@ -234,45 +234,27 @@ def scrape_overview(symbol: str) -> dict:
 def scrape_analysis(symbol: str) -> dict:
     try:
         ticker = yf.Ticker(symbol)
-        df = ticker.analysis
+        info = ticker.info
 
-        if df.empty:
-            return {"warning": "No analyst forecast data available."}
-
-        analysis = {}
-
-        # Access values from the DataFrame safely
-        def safe_get(row, col):
-            try:
-                val = df.loc[row, col]
-                if pd.notna(val):
-                    if isinstance(val, (float, int)):
-                        return f"{val:.2f}" if abs(val) < 1e12 else f"{val:.2e}"
-                    return str(val)
-            except:
-                return None
-
-        # Mapping like in your screenshot
-        fields = {
-            "Revenue Estimate - Current Qtr": ("Revenue Estimate", "Current Qtr."),
-            "Revenue Estimate - Next Qtr": ("Revenue Estimate", "Next Qtr."),
-            "EPS Trend - Current Qtr": ("EPS Trend", "Current Qtr."),
-            "EPS Trend - Current Year": ("EPS Trend", "Current Year"),
-            "Year Ago EPS": ("EPS Revisions", "Year Ago"),
-            "Sales Growth (year/est)": ("Growth", "Next Year"),  # or "Current Year"
-            "Current Estimate": ("Earnings Estimate", "Avg. Estimate"),
-            "Up Last 7 Days": ("Earnings Estimate", "Up Last 7 Days"),
-            "Up Last 30 Days": ("Earnings Estimate", "Up Last 30 Days"),
-            "Current Qtr": ("Earnings Growth", "Current Qtr."),
-            "Next Qtr": ("Earnings Growth", "Next Qtr."),
-            "Current Year": ("Earnings Growth", "Current Year"),
-            "Next Year": ("Earnings Growth", "Next Year")
+        # Analyst-like metrics derived from info
+        analysis = {
+            "Revenue Estimate - Current Qtr": info.get("revenueEstimate"),
+            "Revenue Estimate - Next Qtr": info.get("revenueEstimateNextQuarter"),
+            "EPS Trend - Current Qtr": info.get("epsCurrentQuarter"),
+            "EPS Trend - Current Year": info.get("epsForward"),
+            "Year Ago EPS": info.get("epsTrailingTwelveMonths"),
+            "Sales Growth (year/est)": f"{info.get('revenueGrowth', 0) * 100:.2f}%" if info.get("revenueGrowth") else None,
+            "Current Estimate": info.get("earningsEstimate"),
+            "Up Last 7 Days": info.get("earningsEstimateUpLast7Days"),
+            "Up Last 30 Days": info.get("earningsEstimateUpLast30Days"),
+            "Current Qtr": f"{info.get('earningsQuarterGrowth', 0) * 100:.2f}%" if info.get("earningsQuarterGrowth") else None,
+            "Next Qtr": f"{info.get('earningsNextQuarterGrowth', 0) * 100:.2f}%" if info.get("earningsNextQuarterGrowth") else None,
+            "Current Year": f"{info.get('earningsGrowth', 0) * 100:.2f}%" if info.get("earningsGrowth") else None,
+            "Next Year": f"{info.get('earningsNextYearGrowth', 0) * 100:.2f}%" if info.get("earningsNextYearGrowth") else None
         }
 
-        for label, (row, col) in fields.items():
-            val = safe_get(row, col)
-            if val:
-                analysis[label] = val
+        # Clean: remove None or missing values
+        analysis = {k: v for k, v in analysis.items() if v is not None}
 
         return analysis
 
