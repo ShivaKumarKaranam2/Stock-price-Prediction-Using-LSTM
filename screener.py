@@ -189,67 +189,79 @@
 # File: screener.py
 # =======================
 # screener.py
-
-import yfinance as yf
-import google.generativeai as genai
+import requests
+from bs4 import BeautifulSoup
 import json
 import pandas as pd
+import yfinance as yf
+import google.generativeai as genai
+import re
 import os
+import wikipedia
 from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-genai.configure(api_key=GEMINI_API_KEY)
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
-# ✅ Fetch basic stock info using yfinance
+# ======================
+# ✅ OVERVIEW SCRAPER
+# ======================
 def scrape_overview(symbol: str) -> dict:
-    try:
-        stock = yf.Ticker(symbol)
-        info = stock.info
+    company = symbol.split(".")[0].lower()
+    url = f"https://www.screener.in/company/{company}/consolidated/"
+    r = requests.get(url, headers={"User-Agent": "Mozilla/5.0"})
+    if r.status_code != 200:
+        return None
+    soup = BeautifulSoup(r.text, "html.parser")
+    blocks = soup.select(".company-ratios .row .col")
+    if not blocks:
+        return None
+    data = {}
+    for b in blocks:
+        sub = b.select_one(".sub")
+        number = b.select_one(".number")
+        if sub and number:
+            data[sub.get_text(strip=True)] = number.get_text(strip=True)
+    return data
 
-        # Extract selected fields
-        data = {
-            "Symbol": symbol,
-            "Current Price": info.get("currentPrice"),
-            "Previous Close": info.get("previousClose"),
-            "Open": info.get("open"),
-            "Day Low": info.get("dayLow"),
-            "Day High": info.get("dayHigh"),
-            "52 Week Low": info.get("fiftyTwoWeekLow"),
-            "52 Week High": info.get("fiftyTwoWeekHigh"),
-            "Volume": info.get("volume"),
-            "Market Cap": info.get("marketCap"),
-            "PE Ratio": info.get("trailingPE"),
-            "EPS": info.get("trailingEps"),
-            "Dividend Yield": info.get("dividendYield"),
-            "Sector": info.get("sector"),
-            "Industry": info.get("industry"),
-            "Website": info.get("website")
+# ✅ Fallback using Wikipedia
+def fallback_overview(symbol: str) -> dict:
+    try:
+        company = symbol.split(".")[0]
+        page = wikipedia.page(company)
+        return {
+            "Title": page.title,
+            "Summary": page.summary[:500] + "..."
         }
-        return {k: v for k, v in data.items() if v is not None}
-    except Exception as e:
-        return {"error": f"Failed to fetch data from yfinance: {str(e)}"}
-# ✅ Extract limited analyst data from yfinance
+    except Exception:
+        return {"error": "Overview not available via fallback"}
+
+# ======================
+# ✅ ANALYSIS SCRAPER
+# ======================
 def scrape_analysis(symbol: str) -> dict:
     try:
         ticker = yf.Ticker(symbol)
-        cal = ticker.calendar.to_dict() if hasattr(ticker.calendar, 'to_dict') else {}
-        earn = ticker.earnings
+        calendar = ticker.calendar
+        calendar_data = calendar.to_dict() if hasattr(calendar, "to_dict") else {}
+        earnings = ticker.earnings
 
-        if not cal and earn.empty:
+        if not calendar_data and (earnings is None or earnings.empty):
             return {}
 
         analysis = {}
-        
-        # Extract data from calendar
-        for key, val in cal.items():
-            if len(val) > 0:
-                analysis[key] = str(val[0])
 
-        # Extract recent earnings
-        if not earn.empty:
-            recent = earn.iloc[-1]
+        # Calendar data
+        for key, val in calendar_data.items():
+            if isinstance(val, (list, tuple)) and len(val) > 0:
+                analysis[key] = str(val[0])
+            elif isinstance(val, (str, int, float)):
+                analysis[key] = str(val)
+
+        # Earnings
+        if earnings is not None and not earnings.empty:
+            recent = earnings.iloc[-1]
             analysis["Earnings Year"] = str(recent.name)
             analysis["Revenue (Millions)"] = f"{recent['Revenue'] / 1e6:.2f}M"
             analysis["Earnings (Millions)"] = f"{recent['Earnings'] / 1e6:.2f}M"
@@ -258,40 +270,51 @@ def scrape_analysis(symbol: str) -> dict:
     except Exception as e:
         return {"error": f"Failed to fetch analyst data: {str(e)}"}
 
+# ======================
+# ✅ FINANCIALS via yfinance
+# ======================
 def scrape_financials(symbol: str) -> pd.DataFrame:
     try:
         return yf.Ticker(symbol).financials
     except:
         return pd.DataFrame()
 
-# ✅ Final API to use in app
+# ======================
+# ✅ UNIFIED DATA FUNCTION
+# ======================
 def get_screener_data(symbol: str):
     overview = scrape_overview(symbol)
-    analysis = scrape_analysis(symbol)  
+    if overview is None:
+        overview = fallback_overview(symbol)
+
+    analysis = scrape_analysis(symbol)
     financials = scrape_financials(symbol)
+
     return overview, analysis, financials
 
-
-# ✅ Gemini AI Investment Recommendation
+# ======================
+# ✅ INVESTMENT ADVICE via Gemini
+# ======================
 def build_investment_decision_prompt(symbol: str, overview: dict, predicted_price: float) -> str:
     prompt = f"""
-You are a professional Indian stock advisor.
+You are a smart stock advisor for Indian stocks.
 
-Stock Symbol: {symbol}
-Predicted Next Day Price: ₹{predicted_price:.2f}
+Stock: {symbol}
+Next‑day forecast closing price: ₹{predicted_price:.2f}
 
-Company Snapshot:
+Available key data:
 {json.dumps(overview, indent=2)}
 
-Based only on this information, give:
-1. Investment Decision: Buy / Hold / Sell
+Based only on this data, answer:
+1. Investment Decision (Buy / Hold / Sell)
 2. Reasoning
 3. Risks
-4. Final Summary
+4. Final recommendation summary
 """
     model = genai.GenerativeModel("gemma-3n-e4b-it")
     response = model.generate_content(prompt)
     return response.text.strip()
+
 
 
 
