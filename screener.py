@@ -234,35 +234,30 @@ def scrape_overview(symbol: str) -> dict:
 def scrape_analysis(symbol: str) -> dict:
     try:
         ticker = yf.Ticker(symbol)
-        cal = ticker.calendar
+        cal = ticker.calendar.to_dict() if hasattr(ticker.calendar, 'to_dict') else {}
         earn = ticker.earnings
-        if cal.empty and earn.empty:
+
+        if not cal and earn.empty:
             return {}
 
         analysis = {}
-        if not cal.empty:
-            for index, value in cal.items():
-                analysis[index] = str(value[0])
+        
+        # Extract data from calendar
+        for key, val in cal.items():
+            if len(val) > 0:
+                analysis[key] = str(val[0])
 
+        # Extract recent earnings
         if not earn.empty:
             recent = earn.iloc[-1]
             analysis["Earnings Year"] = str(recent.name)
-            analysis["Revenue (Millions)"] = f"{recent['Revenue']/1e6:.2f}M"
-            analysis["Earnings (Millions)"] = f"{recent['Earnings']/1e6:.2f}M"
+            analysis["Revenue (Millions)"] = f"{recent['Revenue'] / 1e6:.2f}M"
+            analysis["Earnings (Millions)"] = f"{recent['Earnings'] / 1e6:.2f}M"
 
         return analysis
     except Exception as e:
         return {"error": f"Failed to fetch analyst data: {str(e)}"}
 
-
-# ✅ Fetch financial data using yfinance
-def scrape_financials(symbol: str) -> pd.DataFrame:
-    try:
-        return yf.Ticker(symbol).financials
-    except:
-        return pd.DataFrame()
-
-# ✅ Final API to use in app
 def get_screener_data(symbol: str):
     overview = scrape_overview(symbol)
     analysis = scrape_analysis(symbol)  
