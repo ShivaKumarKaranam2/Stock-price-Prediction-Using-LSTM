@@ -14,7 +14,8 @@ nest_asyncio.apply()
 import datetime as dt
 import matplotlib.pyplot as plt
 
-from screener import  get_screener_data,build_investment_decision_prompt
+from screener import get_screener_data, build_investment_decision_prompt
+
 from utils import plot_eps_chart
  
 
