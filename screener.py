@@ -184,83 +184,77 @@
 # =======================
 # File: screener.py
 # =======================
+# Let's prepare working code for Indian stock analysis using Screener.in instead of Alpha Vantage.
+
 import requests
+from bs4 import BeautifulSoup
 import pandas as pd
-import google.generativeai as genai
+import yfinance as yf
 import json
 import os
 from dotenv import load_dotenv
+import google.generativeai as genai
+import re
 
 # Load environment variables
 load_dotenv()
-ALPHA_VANTAGE_KEY = os.getenv("ALPHA_VANTAGE_KEY")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 genai.configure(api_key=GEMINI_API_KEY)
 
-# ✅ Overview Data from Alpha Vantage
+# ====================
+# Overview from Screener.in
+# ====================
 def scrape_overview(symbol: str) -> dict:
-    url = f"https://www.alphavantage.co/query?function=OVERVIEW&symbol={symbol}&apikey={ALPHA_VANTAGE_KEY}"
-    response = requests.get(url)
+    # Extract company slug (e.g., RELIANCE.NS -> reliance)
+    base = symbol.split('.')[0].lower()
+    url = f"https://www.screener.in/company/{base}/"
+
+    headers = {
+        "User-Agent": "Mozilla/5.0"
+    }
+
+    response = requests.get(url, headers=headers)
     if response.status_code != 200:
-        raise Exception(f"Alpha Vantage Overview API failed with status {response.status_code}")
-    
-    data = response.json()
-    if not data or "Name" not in data:
-        return {"error": "Overview not available or API limit reached."}
+        return {"error": f"Failed to fetch data from Screener.in for {symbol}"}
 
-    # Return only key fields similar to Yahoo layout
-    keys = [
-        "Name", "Symbol", "MarketCapitalization", "PERatio", "EPS",
-        "DividendPerShare", "DividendYield", "52WeekHigh", "52WeekLow",
-        "Beta", "Currency", "Country", "Sector", "Industry"
-    ]
-    return {k: data.get(k, "N/A") for k in keys}
+    soup = BeautifulSoup(response.text, "html.parser")
+    try:
+        overview_data = {}
 
-# ✅ Earnings Data (like analysis tab)
-def scrape_analysis(symbol: str) -> dict:
-    url = f"https://www.alphavantage.co/query?function=EARNINGS&symbol={symbol}&apikey={ALPHA_VANTAGE_KEY}"
-    response = requests.get(url)
-    if response.status_code != 200:
-        raise Exception(f"Alpha Vantage Earnings API failed with status {response.status_code}")
-    
-    data = response.json()
-    if "quarterlyEarnings" not in data:
-        return {"error": "Earnings data not available or API limit reached."}
+        # Find key ratios
+        ratios = soup.select(".company-ratios .row .col")
+        for block in ratios:
+            label = block.select_one(".sub").get_text(strip=True)
+            value = block.select_one(".number").get_text(strip=True)
+            overview_data[label] = value
 
-    earnings = data["quarterlyEarnings"][:4]  # Most recent 4 quarters
-    analysis_summary = {}
-    for e in earnings:
-        quarter = e.get("fiscalDateEnding", "Unknown Quarter")
-        analysis_summary[quarter] = {
-            "Reported EPS": e.get("reportedEPS", "N/A"),
-            "Estimated EPS": e.get("estimatedEPS", "N/A"),
-            "Surprise": e.get("surprise", "N/A"),
-            "Surprise %": e.get("surprisePercentage", "N/A"),
-        }
+        # Add market cap and PE directly
+        facts = soup.select(".company-profile .company-info .row")
+        for fact in facts:
+            spans = fact.find_all("span")
+            if len(spans) >= 2:
+                key = spans[0].get_text(strip=True)
+                val = spans[1].get_text(strip=True)
+                overview_data[key] = val
 
-    return analysis_summary
+        return overview_data if overview_data else {"error": "No data found"}
+    except Exception as e:
+        return {"error": f"Parsing error: {e}"}
 
-# ✅ Financials from Alpha Vantage (limited, fallback to yfinance optional)
+# ====================
+# EPS & Financials
+# ====================
 def scrape_financials(symbol: str) -> pd.DataFrame:
     try:
-        url = f"https://www.alphavantage.co/query?function=INCOME_STATEMENT&symbol={symbol}&apikey={ALPHA_VANTAGE_KEY}"
-        response = requests.get(url)
-        data = response.json()
-        if "quarterlyReports" in data:
-            df = pd.DataFrame(data["quarterlyReports"])
-            return df
-        return pd.DataFrame()
+        ticker = yf.Ticker(symbol)
+        fin = ticker.financials
+        return fin
     except:
         return pd.DataFrame()
 
-# ✅ Combine all screener data
-def get_screener_data(symbol: str) -> tuple:
-    overview = scrape_overview(symbol)
-    analysis = scrape_analysis(symbol)
-    financial_df = scrape_financials(symbol)
-    return overview, analysis, financial_df
-
-# ✅ Generate Investment Advice (Gemini)
+# ====================
+# Investment Advice (Gemini)
+# ====================
 def build_investment_decision_prompt(symbol: str, overview: dict, predicted_price: float) -> str:
     prompt = f"""
 You are a professional stock market advisor.
@@ -274,11 +268,23 @@ Analyze this stock and provide investment advice in the following format:
 ### Stock Symbol: {symbol}
 ### Predicted Price (Next Trading Day): ₹{predicted_price:.2f}
 
-### Company Metrics:
+### Screener Overview Metrics:
 {json.dumps(overview, indent=2)}
 
-Be precise and explain based only on the data provided. Do not fabricate missing metrics.
+Be precise and explain based only on the data provided. Don’t fabricate missing metrics.
 """
     model = genai.GenerativeModel("gemma-3n-e4b-it")
     response = model.generate_content(prompt)
     return response.text.strip()
+
+# ====================
+# Unified Fetcher
+# ====================
+def get_screener_data(symbol: str) -> tuple:
+    overview = scrape_overview(symbol)
+    financial_df = scrape_financials(symbol)
+    analysis = {}  # Optional: Can parse other sources
+    return overview, analysis, financial_df
+
+
+
