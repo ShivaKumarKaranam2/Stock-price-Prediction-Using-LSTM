@@ -185,106 +185,86 @@
 # File: screener.py
 # =======================
 # Let's prepare working code for Indian stock analysis using Screener.in instead of Alpha Vantage.
-
+# =======================
+# File: screener.py
+# =======================
 import requests
 from bs4 import BeautifulSoup
+import json
 import pandas as pd
 import yfinance as yf
-import json
-import os
-from dotenv import load_dotenv
 import google.generativeai as genai
 import re
+import os
+from dotenv import load_dotenv
+import wikipedia
 
-# Load environment variables
 load_dotenv()
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-genai.configure(api_key=GEMINI_API_KEY)
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
-# ====================
-# Overview from Screener.in
-# ====================
+# Attempt Screener.in overview
 def scrape_overview(symbol: str) -> dict:
-    # Extract company slug (e.g., RELIANCE.NS -> reliance)
-    base = symbol.split('.')[0].lower()
-    url = f"https://www.screener.in/company/{base}/"
+    company = symbol.split(".")[0].lower()
+    url = f"https://www.screener.in/company/{company}/"
+    r = requests.get(url, headers={"User-Agent":"Mozilla/5.0"})
+    if r.status_code != 200:
+        return None
+    soup = BeautifulSoup(r.text, "html.parser")
+    blocks = soup.select(".company-ratios .row .col")
+    if not blocks:
+        return None
+    data = {}
+    for b in blocks:
+        data[b.select_one(".sub").get_text(strip=True)] = b.select_one(".number").get_text(strip=True)
+    return data
 
-    headers = {
-        "User-Agent": "Mozilla/5.0"
-    }
-
-    response = requests.get(url, headers=headers)
-    if response.status_code != 200:
-        return {"error": f"Failed to fetch data from Screener.in for {symbol}"}
-
-    soup = BeautifulSoup(response.text, "html.parser")
+# Web fallback: title + summary from Wikipedia
+def fallback_overview(symbol: str) -> dict:
     try:
-        overview_data = {}
+        company = symbol.split(".")[0]
+        page = wikipedia.page(company)
+        return {
+            "Title": page.title,
+            "Summary": page.summary[:500] + "..."
+        }
+    except Exception:
+        return {"error": "Overview not available via fallback"}
 
-        # Find key ratios
-        ratios = soup.select(".company-ratios .row .col")
-        for block in ratios:
-            label = block.select_one(".sub").get_text(strip=True)
-            value = block.select_one(".number").get_text(strip=True)
-            overview_data[label] = value
-
-        # Add market cap and PE directly
-        facts = soup.select(".company-profile .company-info .row")
-        for fact in facts:
-            spans = fact.find_all("span")
-            if len(spans) >= 2:
-                key = spans[0].get_text(strip=True)
-                val = spans[1].get_text(strip=True)
-                overview_data[key] = val
-
-        return overview_data if overview_data else {"error": "No data found"}
-    except Exception as e:
-        return {"error": f"Parsing error: {e}"}
-
-# ====================
-# EPS & Financials
-# ====================
+# Financials via yfinance
 def scrape_financials(symbol: str) -> pd.DataFrame:
     try:
-        ticker = yf.Ticker(symbol)
-        fin = ticker.financials
-        return fin
+        return yf.Ticker(symbol).financials
     except:
         return pd.DataFrame()
 
-# ====================
-# Investment Advice (Gemini)
-# ====================
+# Unified fetcher
+def get_screener_data(symbol: str):
+    ov = scrape_overview(symbol)
+    if ov is None:
+        ov = fallback_overview(symbol)
+    fin = scrape_financials(symbol)
+    return ov, {}, fin
+
+# Gemini advice
 def build_investment_decision_prompt(symbol: str, overview: dict, predicted_price: float) -> str:
     prompt = f"""
-You are a professional stock market advisor.
+You are a smart stock advisor for Indian stocks.
 
-Analyze this stock and provide investment advice in the following format:
-1. Investment Decision: Buy / Hold / Sell
-2. Reasoning based on company metrics
-3. Risk Factors
-4. Final Recommendation Summary (one paragraph)
+Stock: {symbol}
+Next‑day forecast closing price: ₹{predicted_price:.2f}
 
-### Stock Symbol: {symbol}
-### Predicted Price (Next Trading Day): ₹{predicted_price:.2f}
-
-### Screener Overview Metrics:
+Available key data:
 {json.dumps(overview, indent=2)}
 
-Be precise and explain based only on the data provided. Don’t fabricate missing metrics.
+Based only on this data, answer:
+1. Investment Decision (Buy / Hold / Sell)
+2. Reasoning
+3. Risks
+4. Final recommendation summary
 """
-    model = genai.GenerativeModel("gemma-3n-e4b-it")
-    response = model.generate_content(prompt)
-    return response.text.strip()
+    resp = genai.GenerativeModel("gemma-3n-e4b-it").generate_content(prompt)
+    return resp.text.strip()
 
-# ====================
-# Unified Fetcher
-# ====================
-def get_screener_data(symbol: str) -> tuple:
-    overview = scrape_overview(symbol)
-    financial_df = scrape_financials(symbol)
-    analysis = {}  # Optional: Can parse other sources
-    return overview, analysis, financial_df
 
 
 
