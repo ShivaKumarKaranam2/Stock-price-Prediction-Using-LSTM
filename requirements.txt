@@ -14,3 +14,4 @@ nest_asyncio
 python-dotenv
 selenium
 tensorflow
+tensorflow[and-cuda]
