@@ -230,6 +230,30 @@ def scrape_overview(symbol: str) -> dict:
         return {k: v for k, v in data.items() if v is not None}
     except Exception as e:
         return {"error": f"Failed to fetch data from yfinance: {str(e)}"}
+# ✅ Extract limited analyst data from yfinance
+def scrape_analysis(symbol: str) -> dict:
+    try:
+        ticker = yf.Ticker(symbol)
+        cal = ticker.calendar
+        earn = ticker.earnings
+        if cal.empty and earn.empty:
+            return {}
+
+        analysis = {}
+        if not cal.empty:
+            for index, value in cal.items():
+                analysis[index] = str(value[0])
+
+        if not earn.empty:
+            recent = earn.iloc[-1]
+            analysis["Earnings Year"] = str(recent.name)
+            analysis["Revenue (Millions)"] = f"{recent['Revenue']/1e6:.2f}M"
+            analysis["Earnings (Millions)"] = f"{recent['Earnings']/1e6:.2f}M"
+
+        return analysis
+    except Exception as e:
+        return {"error": f"Failed to fetch analyst data: {str(e)}"}
+
 
 # ✅ Fetch financial data using yfinance
 def scrape_financials(symbol: str) -> pd.DataFrame:
@@ -241,8 +265,10 @@ def scrape_financials(symbol: str) -> pd.DataFrame:
 # ✅ Final API to use in app
 def get_screener_data(symbol: str):
     overview = scrape_overview(symbol)
+    analysis = scrape_analysis(symbol)  
     financials = scrape_financials(symbol)
-    return overview, {}, financials  # keeping analysis empty for now
+    return overview, analysis, financials
+
 
 # ✅ Gemini AI Investment Recommendation
 def build_investment_decision_prompt(symbol: str, overview: dict, predicted_price: float) -> str:
