@@ -258,6 +258,13 @@ def scrape_analysis(symbol: str) -> dict:
     except Exception as e:
         return {"error": f"Failed to fetch analyst data: {str(e)}"}
 
+def scrape_financials(symbol: str) -> pd.DataFrame:
+    try:
+        return yf.Ticker(symbol).financials
+    except:
+        return pd.DataFrame()
+
+# ✅ Final API to use in app
 def get_screener_data(symbol: str):
     overview = scrape_overview(symbol)
     analysis = scrape_analysis(symbol)  
