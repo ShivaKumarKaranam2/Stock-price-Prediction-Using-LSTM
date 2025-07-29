@@ -16,3 +16,4 @@ selenium
 tensorflow
 tensorflow[and-cuda]
 webdriver-manager
+plotly
