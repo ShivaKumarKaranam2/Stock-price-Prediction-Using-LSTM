@@ -188,82 +188,83 @@
 # =======================
 # File: screener.py
 # =======================
-import requests
-from bs4 import BeautifulSoup
-import json
-import pandas as pd
+# screener.py
+
 import yfinance as yf
 import google.generativeai as genai
-import re
+import json
+import pandas as pd
 import os
 from dotenv import load_dotenv
-import wikipedia
 
+# Load environment variables
 load_dotenv()
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+genai.configure(api_key=GEMINI_API_KEY)
 
-# Attempt Screener.in overview
+# ✅ Fetch basic stock info using yfinance
 def scrape_overview(symbol: str) -> dict:
-    company = symbol.split(".")[0].lower()
-    url = f"https://www.screener.in/company/{company}/consolidated/"
-    r = requests.get(url, headers={"User-Agent":"Mozilla/5.0"})
-    if r.status_code != 200:
-        return None
-    soup = BeautifulSoup(r.text, "html.parser")
-    blocks = soup.select(".company-ratios .row .col")
-    if not blocks:
-        return None
-    data = {}
-    for b in blocks:
-        data[b.select_one(".sub").get_text(strip=True)] = b.select_one(".number").get_text(strip=True)
-    return data
-
-# Web fallback: title + summary from Wikipedia
-def fallback_overview(symbol: str) -> dict:
     try:
-        company = symbol.split(".")[0]
-        page = wikipedia.page(company)
-        return {
-            "Title": page.title,
-            "Summary": page.summary[:500] + "..."
-        }
-    except Exception:
-        return {"error": "Overview not available via fallback"}
+        stock = yf.Ticker(symbol)
+        info = stock.info
 
-# Financials via yfinance
+        # Extract selected fields
+        data = {
+            "Symbol": symbol,
+            "Current Price": info.get("currentPrice"),
+            "Previous Close": info.get("previousClose"),
+            "Open": info.get("open"),
+            "Day Low": info.get("dayLow"),
+            "Day High": info.get("dayHigh"),
+            "52 Week Low": info.get("fiftyTwoWeekLow"),
+            "52 Week High": info.get("fiftyTwoWeekHigh"),
+            "Volume": info.get("volume"),
+            "Market Cap": info.get("marketCap"),
+            "PE Ratio": info.get("trailingPE"),
+            "EPS": info.get("trailingEps"),
+            "Dividend Yield": info.get("dividendYield"),
+            "Sector": info.get("sector"),
+            "Industry": info.get("industry"),
+            "Website": info.get("website")
+        }
+        return {k: v for k, v in data.items() if v is not None}
+    except Exception as e:
+        return {"error": f"Failed to fetch data from yfinance: {str(e)}"}
+
+# ✅ Fetch financial data using yfinance
 def scrape_financials(symbol: str) -> pd.DataFrame:
     try:
         return yf.Ticker(symbol).financials
     except:
         return pd.DataFrame()
 
-# Unified fetcher
+# ✅ Final API to use in app
 def get_screener_data(symbol: str):
-    ov = scrape_overview(symbol)
-    if ov is None:
-        ov = fallback_overview(symbol)
-    fin = scrape_financials(symbol)
-    return ov, {}, fin
+    overview = scrape_overview(symbol)
+    financials = scrape_financials(symbol)
+    return overview, {}, financials  # keeping analysis empty for now
 
-# Gemini advice
+# ✅ Gemini AI Investment Recommendation
 def build_investment_decision_prompt(symbol: str, overview: dict, predicted_price: float) -> str:
     prompt = f"""
-You are a smart stock advisor for Indian stocks.
+You are a professional Indian stock advisor.
 
-Stock: {symbol}
-Next‑day forecast closing price: ₹{predicted_price:.2f}
+Stock Symbol: {symbol}
+Predicted Next Day Price: ₹{predicted_price:.2f}
 
-Available key data:
+Company Snapshot:
 {json.dumps(overview, indent=2)}
 
-Based only on this data, answer:
-1. Investment Decision (Buy / Hold / Sell)
+Based only on this information, give:
+1. Investment Decision: Buy / Hold / Sell
 2. Reasoning
 3. Risks
-4. Final recommendation summary
+4. Final Summary
 """
-    resp = genai.GenerativeModel("gemma-3n-e4b-it").generate_content(prompt)
-    return resp.text.strip()
+    model = genai.GenerativeModel("gemma-3n-e4b-it")
+    response = model.generate_content(prompt)
+    return response.text.strip()
+
 
 
 
