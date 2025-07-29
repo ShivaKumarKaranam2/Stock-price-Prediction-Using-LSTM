@@ -13,7 +13,7 @@ nest_asyncio.apply()
 
 import datetime as dt
 import matplotlib.pyplot as plt
-import tensorflow as tf
+
 from screener import  get_screener_data,build_investment_decision_prompt
 from utils import plot_eps_chart
  
@@ -26,8 +26,9 @@ tabs = st.tabs(["📉 LSTM Predictor", "📘 Stock Analyzer"])
 # 📉 Tab 1: LSTM Predictor
 # =====================================
 with tabs[0]:
+    import tensorflow as tf
     st.title("📉 Stock Price Prediction using LSTM")
-    model = tf.keras.load_model("C:/Users/karan/OneDrive/Documents/Stock price/stock_model.h5", compile=False)
+    model = tf.keras.models.load_model("C:/Users/karan/OneDrive/Documents/Stock price/stock_model.h5", compile=False)
     stock = st.sidebar.text_input("Enter Stock Symbol", value="RELIANCE.NS")
     start_date = st.sidebar.date_input("Start Date", dt.date(2010, 1, 1))
     end_date = dt.datetime.now()
