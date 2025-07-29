@@ -205,7 +205,7 @@ genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 # Attempt Screener.in overview
 def scrape_overview(symbol: str) -> dict:
     company = symbol.split(".")[0].lower()
-    url = f"https://www.screener.in/company/{company}/"
+    url = f"https://www.screener.in/company/{company}/consolidated/"
     r = requests.get(url, headers={"User-Agent":"Mozilla/5.0"})
     if r.status_code != 200:
         return None
