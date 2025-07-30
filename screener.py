@@ -1,5 +1,3 @@
-
-
 import yfinance as yf
 import google.generativeai as genai
 import json
@@ -12,7 +10,7 @@ load_dotenv()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 genai.configure(api_key=GEMINI_API_KEY)
 
-# ✅ Fetch basic stock info using yfinance
+# Fetch basic stock info using yfinance
 def scrape_overview(symbol: str) -> dict:
     try:
         stock = yf.Ticker(symbol)
@@ -78,7 +76,7 @@ def scrape_financials(symbol: str) -> pd.DataFrame:
     except:
         return pd.DataFrame()
 
-# ✅ Final API to use in app
+#  Final API to use in app
 def get_screener_data(symbol: str):
     overview = scrape_overview(symbol)
     analysis = scrape_analysis(symbol)  
@@ -86,7 +84,7 @@ def get_screener_data(symbol: str):
     return overview, analysis, financials
 
 
-# ✅ Gemini AI Investment Recommendation
+# Gemini AI Investment Recommendation
 def build_investment_decision_prompt(symbol: str, overview: dict, predicted_price: float) -> str:
     prompt = f"""
 You are a professional Indian stock advisor.

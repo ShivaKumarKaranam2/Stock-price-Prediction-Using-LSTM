@@ -1,6 +1,3 @@
-# =======================
-# File: stock_app.py
-# =======================
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -19,14 +16,13 @@ from utils import plot_eps_chart
 st.set_page_config(page_title="📈 Stock Price App", layout="wide")
 tabs = st.tabs(["📉 LSTM Predictor", "📘 Stock Analyzer"])
 
-# =====================================
-# 📉 Tab 1: LSTM Predictor
-# =====================================
+#Tab 1: LSTM Predictor
+
 with tabs[0]:
     import tensorflow as tf
     st.title("📉 Stock Price Prediction using LSTM")
     model = tf.keras.models.load_model("stock_model.h5", compile=False)
-    stock = st.sidebar.text_input("Enter Stock Symbol", value="RELIANCE.NS")
+    stock = st.sidebar.text_input("Enter Stock Symbol with NSE prefix", value="RELIANCE.NS")
     start_date = st.sidebar.date_input("Start Date", dt.date(2010, 1, 1))
     end_date = dt.datetime.now()
 
@@ -87,7 +83,7 @@ with tabs[0]:
     actual_prices_rescaled = scaler.inverse_transform(y_test_array)[:, close_index]
 
     st.subheader("📊 Latest Prediction")
-    st.metric(label="Next-Day Predicted Close Price", value=f"${predicted_prices_rescaled[-1]:.2f}")
+    st.metric(label="Next-Day Predicted Close Price", value=f"{predicted_prices_rescaled[-1]:.2f}")
 
     fig2, ax2 = plt.subplots(figsize=(12, 5))
     ax2.plot(actual_prices_rescaled, label='Actual Price', color='green')
@@ -129,7 +125,7 @@ with tabs[0]:
     st.download_button("📥 Download CSV", csv_future, f"{stock}_future_predictions.csv", "text/csv")
 
 
-# 📘 Tab 2: Stock Analyzer (Enhanced)
+#Tab 2: Stock Analyzer (Enhanced)
 
 with tabs[1]:
     st.title("📘 Stock Analyzer & AI Financial Advisor")
@@ -138,17 +134,17 @@ with tabs[1]:
         with st.spinner("Fetching Stock Analysis & Advice..."):
             clean = stock.upper().split(".")[0] + ".NS"
 
-            # ✅ Step 1: Scrape Screener Data
+            #  Scrape Screener Data
             overview, analysis, financial_df = get_screener_data(clean)
 
-            # ✅ Step 2: Display Stock Overview
+            # Display Stock Overview
             st.subheader("📊 Stock Overview")
             if overview:
                 st.json(overview)
             else:
                 st.error("Failed to load overview data.")
 
-            # ✅ Step 3: Analyst Forecasts
+            # Analyst Forecasts
             if analysis:
                 st.subheader("📊 Analyst Forecasts")
                 for key, value in analysis.items():
@@ -156,14 +152,14 @@ with tabs[1]:
             else:
                 st.warning("❗ No analyst data found.")
 
-            # ✅ Step 4: Financial Charts
+            # Financial Charts
             st.subheader("📈 Income Statement / Financials")
             if financial_df is not None and not financial_df.empty:
                 st.plotly_chart(plot_eps_chart(financial_df), use_container_width=True)
             else:
                 st.warning("Financials data unavailable.")
 
-            # ✅ Step 5: Generate Investment Advice
+            #  Generate Investment Advice
             st.subheader("💡 AI Investment Advice (Gemini)")
 
             if overview and future_predictions:
@@ -173,7 +169,7 @@ with tabs[1]:
                     st.success("Here’s what Gemini thinks:")
                     st.markdown(advice_text)
 
-                    # ✅ Step 6: Download Button for Advice
+                    # Download Button for Advice
                     st.download_button(
                         label="📥 Download Advice (.txt)",
                         data=advice_text,
