@@ -128,7 +128,7 @@ with tabs[0]:
 #Tab 2: Stock Analyzer (Enhanced)
 
 with tabs[1]:
-    st.title("📘 Stock Analyzer & AI Financial Advisor")
+    st.title("📘AI Stock Analyzer ")
 
     if st.button("🔍 Analyze Stock"):
         with st.spinner("Fetching Stock Analysis & Advice..."):
