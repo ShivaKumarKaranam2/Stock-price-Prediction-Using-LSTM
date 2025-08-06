@@ -4,7 +4,7 @@ Welcome to the **Stock Price Prediction App**, powered by **Streamlit** and depl
 
 This app predicts the future **closing prices** of any stock using a deep learning model (**LSTM - Long Short-Term Memory**). It allows you to interactively fetch, visualize, and forecast stock trends with a user-friendly interface.
 
-🔗 **Live App**: [Click to Open](https://huggingface.co/spaces/Shiva-k22/Stock-price-prediction-uisng-LSTM)
+🔗 **Live App**: [Click to Open](https://stock-price-prediction-using-lstm-5zytns5ts6mhs9ascjkmkx.streamlit.app/)
 
 ---
 
